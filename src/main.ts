@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { open } from "@tauri-apps/plugin-dialog";
 import "./styles.css";
 
 type SaveCaptureResponse = {
@@ -9,6 +10,10 @@ type SaveCaptureResponse = {
 };
 
 type SavePastedImageResponse = {
+  path: string;
+};
+
+type SketchSavedPayload = {
   path: string;
 };
 
@@ -23,6 +28,7 @@ function getRequiredElement<T extends Element>(selector: string): T {
 const noteInput = getRequiredElement<HTMLTextAreaElement>("#noteInput");
 const captureCard = getRequiredElement<HTMLElement>("#captureCard");
 const attachButton = getRequiredElement<HTMLButtonElement>("#attachButton");
+const sketchButton = getRequiredElement<HTMLButtonElement>("#sketchButton");
 const sendButton = getRequiredElement<HTMLButtonElement>("#sendButton");
 const attachmentsEl = getRequiredElement<HTMLDivElement>("#attachments");
 const statusEl = getRequiredElement<HTMLParagraphElement>("#status");
@@ -44,7 +50,36 @@ function isImageFile(file: File): boolean {
   return file.type.startsWith("image/") || isImageFileName(file.name);
 }
 
-function getClipboardImageFiles(data: DataTransfer | null): File[] {
+function imageExtensionFromType(type: string): string {
+  if (type === "image/jpeg" || type === "image/jpg") return "jpg";
+  if (type === "image/gif") return "gif";
+  if (type === "image/webp") return "webp";
+  if (type === "image/bmp") return "bmp";
+  if (type === "image/svg+xml") return "svg";
+  return "png";
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function sketchTitleFromNow(): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `sketch-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+}
+
+function fileNameFromUrl(url: string, fallback: string): string {
+  try {
+    const parsed = new URL(url);
+    const name = decodeURIComponent(parsed.pathname.split("/").filter(Boolean).at(-1) ?? "");
+    return name && isImageFileName(name) ? name : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function getImageFilesFromDataTransfer(data: DataTransfer | null): File[] {
   const files = Array.from(data?.files ?? []).filter(isImageFile);
   if (files.length > 0) {
     return files;
@@ -55,6 +90,65 @@ function getClipboardImageFiles(data: DataTransfer | null): File[] {
     .map((item) => item.getAsFile())
     .filter((file): file is File => file !== null)
     .filter(isImageFile);
+}
+
+function getDroppedImageUrls(data: DataTransfer | null): string[] {
+  if (!data) {
+    return [];
+  }
+
+  const urls: string[] = [];
+  const downloadUrl = data.getData("DownloadURL");
+  const uriList = data.getData("text/uri-list");
+  const plainText = data.getData("text/plain");
+  const html = data.getData("text/html");
+
+  if (downloadUrl.trim()) {
+    const parts = downloadUrl.trim().split(":");
+    urls.push(parts.slice(2).join(":"));
+  }
+
+  for (const line of uriList.split(/\r?\n/)) {
+    const value = line.trim();
+    if (value && !value.startsWith("#")) {
+      urls.push(value);
+    }
+  }
+
+  if (plainText.trim()) {
+    urls.push(plainText.trim());
+  }
+
+  if (html.trim()) {
+    const documentFromDrop = new DOMParser().parseFromString(html, "text/html");
+    documentFromDrop.querySelectorAll("img[src], source[srcset]").forEach((element) => {
+      if (element instanceof HTMLImageElement) {
+        urls.push(element.currentSrc || element.src);
+      } else {
+        const source = element.getAttribute("srcset")?.split(",")[0]?.trim().split(/\s+/)[0];
+        if (source) urls.push(source);
+      }
+    });
+  }
+
+  return uniqueStrings(urls).filter((url) => {
+    if (url.startsWith("data:image/")) return true;
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function dataUrlToFile(url: string, index: number): Promise<File> {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  const extension = imageExtensionFromType(blob.type);
+  return new File([blob], `dropped-image-${index}.${extension}`, {
+    type: blob.type || "image/png"
+  });
 }
 
 function canSend(): boolean {
@@ -98,7 +192,7 @@ function addAttachmentPaths(paths: string[], message?: string) {
     return;
   }
 
-  attachmentPaths = Array.from(new Set([...attachmentPaths, ...nextPaths]));
+  attachmentPaths = uniqueStrings([...attachmentPaths, ...nextPaths]);
   renderAttachments();
   updateSendState();
 
@@ -134,6 +228,7 @@ function setStatus(
 function setSaving(nextSaving: boolean) {
   isSaving = nextSaving;
   attachButton.disabled = nextSaving;
+  sketchButton.disabled = nextSaving;
   sendButton.classList.toggle("is-saving", nextSaving);
   updateSendState();
 }
@@ -151,7 +246,7 @@ document.querySelectorAll<HTMLElement>("[data-drag-handle]").forEach((element) =
   element.addEventListener("pointerdown", startWindowDrag);
 });
 
-async function savePastedImage(file: File): Promise<string> {
+async function saveImageFile(file: File): Promise<string> {
   const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
   const result = await invoke<SavePastedImageResponse>("save_pasted_image", {
     request: {
@@ -164,59 +259,124 @@ async function savePastedImage(file: File): Promise<string> {
   return result.path;
 }
 
-async function addPastedImages(files: File[]) {
-  const imageFiles = files.filter(isImageFile);
-  if (imageFiles.length === 0 || isSaving) {
-    return;
+async function saveImageUrl(url: string, index: number): Promise<string> {
+  if (url.startsWith("data:image/")) {
+    return saveImageFile(await dataUrlToFile(url, index));
   }
 
-  setStatus("Добавляю изображение...");
+  const result = await invoke<SavePastedImageResponse>("save_image_from_url", {
+    request: {
+      url,
+      fileName: fileNameFromUrl(url, `dropped-image-${index}.png`)
+    }
+  });
+
+  return result.path;
+}
+
+async function addImageFiles(files: File[], sourceLabel = "Image") {
+  const imageFiles = files.filter(isImageFile);
+  if (imageFiles.length === 0 || isSaving) {
+    return false;
+  }
+
+  setStatus(`${sourceLabel} adding...`);
 
   try {
-    const savedPaths = await Promise.all(imageFiles.map(savePastedImage));
-    addAttachmentPaths(savedPaths, imageFiles.length === 1 ? "Изображение добавлено" : "Изображения добавлены");
+    const savedPaths = await Promise.all(imageFiles.map(saveImageFile));
+    addAttachmentPaths(savedPaths, imageFiles.length === 1 ? `${sourceLabel} added` : `${sourceLabel}s added`);
+    return true;
   } catch (error) {
     setStatus(error instanceof Error ? error.message : String(error), "error", true);
+    return false;
   }
 }
 
+async function addDroppedImageData(data: DataTransfer | null): Promise<boolean> {
+  const imageFiles = getImageFilesFromDataTransfer(data);
+  if (imageFiles.length > 0) {
+    return addImageFiles(imageFiles, "Dropped image");
+  }
+
+  const imageUrls = getDroppedImageUrls(data);
+  if (imageUrls.length === 0) {
+    return false;
+  }
+
+  setStatus("Dropped image loading...");
+
+  try {
+    const savedPaths = await Promise.all(imageUrls.map(saveImageUrl));
+    addAttachmentPaths(savedPaths, savedPaths.length === 1 ? "Dropped image added" : "Dropped images added");
+    return true;
+  } catch (error) {
+    setStatus(
+      error instanceof Error ? error.message : "Could not read this dropped image.",
+      "error",
+      true
+    );
+    return false;
+  }
+}
+
+function openSketchWindow() {
+  const title = sketchTitleFromNow();
+  const label = title.replace(/[^a-zA-Z0-9-/:_]/g, "-");
+  const url = `sketch.html?title=${encodeURIComponent(title)}`;
+
+  const sketchWindow = new WebviewWindow(label, {
+    url,
+    title,
+    width: 720,
+    height: 560,
+    minWidth: 520,
+    minHeight: 420,
+    center: true,
+    resizable: true,
+    decorations: true,
+    alwaysOnTop: true,
+    dragDropEnabled: false
+  });
+
+  sketchWindow.once("tauri://error", (event) => {
+    setStatus(String(event.payload), "error", true);
+  });
+}
+
+void appWindow.listen<SketchSavedPayload>("sketch-saved", ({ payload }) => {
+  addAttachmentPaths([payload.path], "Sketch added");
+});
+
 document.addEventListener("paste", (event) => {
-  const files = getClipboardImageFiles(event.clipboardData);
+  const files = getImageFilesFromDataTransfer(event.clipboardData);
   if (files.length === 0) {
     return;
   }
 
   event.preventDefault();
-  void addPastedImages(files);
+  void addImageFiles(files, "Pasted image");
 });
 
 document.addEventListener("dragover", (event) => {
   event.preventDefault();
+  captureCard.classList.add("is-drag-over");
+});
+
+document.addEventListener("dragleave", (event) => {
+  if (event.relatedTarget === null) {
+    captureCard.classList.remove("is-drag-over");
+  }
 });
 
 document.addEventListener("drop", (event) => {
   event.preventDefault();
-});
-
-void appWindow.onDragDropEvent(({ payload }) => {
-  if (payload.type === "enter" || payload.type === "over") {
-    captureCard.classList.add("is-drag-over");
-    return;
-  }
-
   captureCard.classList.remove("is-drag-over");
 
-  if (payload.type !== "drop" || isSaving) {
+  if (isSaving) {
     return;
   }
 
-  const imagePaths = payload.paths.filter(isImageFileName);
-  if (imagePaths.length === 0) {
-    setStatus("Перетащите изображение PNG, JPG, GIF, WEBP, BMP или SVG", "error", true);
-    return;
-  }
-
-  addAttachmentPaths(imagePaths, imagePaths.length === 1 ? "Изображение добавлено" : "Изображения добавлены");
+  void addDroppedImageData(event.dataTransfer);
 });
 
 attachButton.addEventListener("click", async () => {
@@ -235,6 +395,8 @@ attachButton.addEventListener("click", async () => {
     setStatus(error instanceof Error ? error.message : "Не удалось выбрать файлы", "error", true);
   }
 });
+
+sketchButton.addEventListener("click", openSketchWindow);
 
 sendButton.addEventListener("click", async () => {
   if (!canSend()) {

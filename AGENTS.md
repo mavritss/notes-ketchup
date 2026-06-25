@@ -31,6 +31,7 @@ D:\Obsidian\notes-ketchup
 - Vite
 - Plain HTML/CSS без frontend-framework
 - `tauri-plugin-dialog` для выбора файлов
+- `ureq` для backend-загрузки изображений по URL из browser drag-and-drop
 
 ## Важные файлы
 
@@ -61,7 +62,11 @@ README.md
 - включает кнопку отправки, если есть текст или хотя бы одно вложение;
 - открывает системный выбор файлов через `@tauri-apps/plugin-dialog`;
 - принимает картинки из буфера через `Ctrl+V`;
-- принимает картинки через Tauri drag-and-drop;
+- принимает локальные картинки через Tauri drag-and-drop;
+- принимает изображения, перетащенные из браузера/других программ, через HTML5 drop; для этого у main window `dragDropEnabled: false`;
+- сохраняет file/blob/data-url на frontend через `save_pasted_image`;
+- сохраняет http/https image URL через Rust-команду `save_image_from_url`, чтобы не упираться в CORS;
+- открывает отдельное sketch-окно, сохраняет PNG и добавляет его в текущие вложения;
 - вызывает Rust-команды `save_capture` и `save_pasted_image`;
 - очищает форму только после успешного сохранения.
 
@@ -69,6 +74,8 @@ README.md
 
 - `save_capture` создает Markdown-заметку;
 - `save_pasted_image` сохраняет вставленную из буфера картинку во временную папку;
+- `save_image_from_url` скачивает картинку по URL и сохраняет временный файл;
+- `save_pasted_image` также используется для file/blob/data-url drop-изображений и sketch PNG;
 - `copy_attachments` копирует все вложения в assets-папку vault;
 - `build_markdown` формирует frontmatter, заголовок, текст и секцию вложений;
 - `is_image_file` решает, будет ли ссылка image embed или обычной wiki-ссылкой.
@@ -182,22 +189,33 @@ cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Too
 - Текстовая заметка.
 - Вложения через кнопку файла.
 - Картинки через `Ctrl+V`.
-- Картинки через drag-and-drop.
+- Картинки-файлы через HTML5 drag-and-drop.
+- Картинки из браузера/других программ через DOM drop: file/blob/data-url сохраняются напрямую, http/https URL скачиваются Rust-командой.
 - Заметка только с вложением.
+- Базовые скетчи в отдельном окне: редактируемое название, черный цвет, выбор толщины, очистка, закрытие без сохранения, сохранение PNG во вложения.
 - Release exe без отдельного `cmd`.
 
-## План скетчей
+## Скетчи
 
-Реализовывать внутри текущего plain TypeScript frontend.
+Базовый sketch-режим уже реализован как отдельная Vite-страница `sketch.html` с кодом в `src/sketch.ts`.
 
-Рекомендуемая архитектура:
+Текущая архитектура:
 
-- открыть отдельное Tauri-окно или режим `sketch`;
-- использовать HTML canvas;
-- хранить strokes в памяти как массив команд;
-- инструменты: pen, eraser, color, size, undo, redo, clear, save, cancel;
+- главное окно создает `WebviewWindow` с label `sketch-*`;
+- capabilities должны включать `core:webview:allow-create-webview-window`, `core:window:allow-close`, `core:window:allow-set-title`;
+- используется HTML canvas;
+- название скетча редактируется в input и синхронизируется с title окна;
+- закрытие окна ничего не сохраняет;
+- инструменты сейчас: black pen, size, clear, save, close;
 - при сохранении экспортировать PNG;
-- отправлять PNG в тот же pipeline вложений, что и вставленные изображения;
-- позже сохранять JSON-исходник рядом с PNG для редактирования.
+- PNG сохраняется через `save_pasted_image`, а затем sketch-окно отправляет событие `sketch-saved` в `main`.
+
+Следующие шаги:
+
+- eraser;
+- undo/redo;
+- colors;
+- сохранять JSON-исходник рядом с PNG для редактирования;
+- открывать существующие скетчи.
 
 Не добавлять отдельную библиотеку рисования, пока не станет ясно, что native canvas-реализации недостаточно.

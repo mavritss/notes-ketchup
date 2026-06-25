@@ -2,6 +2,7 @@ use chrono::{Datelike, Local};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 use tauri::Manager;
@@ -25,6 +26,13 @@ struct SavePastedImageRequest {
     file_name: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveImageFromUrlRequest {
+    url: String,
+    file_name: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SaveCaptureResponse {
@@ -45,16 +53,62 @@ fn save_capture(request: SaveCaptureRequest) -> Result<SaveCaptureResponse, Stri
 
 #[tauri::command]
 fn save_pasted_image(request: SavePastedImageRequest) -> Result<SavePastedImageResponse, String> {
-    if request.bytes.is_empty() {
-        return Err("Изображение из буфера пустое.".to_string());
-    }
-
-    let extension = detect_image_extension(
-        &request.bytes,
+    save_temp_image(
+        request.bytes,
         request.mime_type.as_deref(),
         request.file_name.as_deref(),
+        "pasted",
     )
-    .ok_or_else(|| "Можно вставлять только изображения.".to_string())?;
+}
+
+#[tauri::command]
+fn save_image_from_url(request: SaveImageFromUrlRequest) -> Result<SavePastedImageResponse, String> {
+    let url = request.url.trim();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("Можно перетаскивать только http/https изображения.".to_string());
+    }
+
+    let response = ureq::get(url)
+        .set(
+            "User-Agent",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) NotesKetchup/0.1",
+        )
+        .call()
+        .map_err(|error| format!("Не удалось загрузить изображение: {}", error))?;
+
+    let mime_type = response
+        .header("content-type")
+        .and_then(|value| value.split(';').next())
+        .map(str::trim)
+        .map(str::to_string);
+
+    let mut bytes = Vec::new();
+    response
+        .into_reader()
+        .take(30 * 1024 * 1024)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Не удалось прочитать изображение: {}", error))?;
+
+    save_temp_image(
+        bytes,
+        mime_type.as_deref(),
+        request.file_name.as_deref(),
+        "dropped",
+    )
+}
+
+fn save_temp_image(
+    bytes: Vec<u8>,
+    mime_type: Option<&str>,
+    file_name: Option<&str>,
+    prefix: &str,
+) -> Result<SavePastedImageResponse, String> {
+    if bytes.is_empty() {
+        return Err("Изображение пустое.".to_string());
+    }
+
+    let extension = detect_image_extension(&bytes, mime_type, file_name)
+        .ok_or_else(|| "Можно сохранять только изображения.".to_string())?;
 
     let target_folder = std::env::temp_dir()
         .join("notes-ketchup")
@@ -68,10 +122,14 @@ fn save_pasted_image(request: SavePastedImageRequest) -> Result<SavePastedImageR
     })?;
 
     let timestamp = Local::now().format("%Y-%m-%d_%H%M%S%.3f").to_string();
-    let target = unique_path(&target_folder, &format!("pasted-{}.{}", timestamp, extension));
-    fs::write(&target, request.bytes).map_err(|error| {
+    let target_name = match file_name {
+        Some(file_name) => format!("{}_{}", timestamp, sanitize_file_name(file_name)),
+        None => format!("{}-{}.{}", prefix, timestamp, extension),
+    };
+    let target = unique_path(&target_folder, &target_name);
+    fs::write(&target, bytes).map_err(|error| {
         format!(
-            "Не удалось сохранить изображение из буфера {}: {}",
+            "Не удалось сохранить изображение {}: {}",
             target.display(),
             error
         )
@@ -125,9 +183,19 @@ fn save_capture_to_vault(
     )?;
 
     let note_path = unique_path(&inbox_path, &format!("{}.md", timestamp_for_file));
-    let markdown = build_markdown(&timestamp_for_file, now.to_rfc3339().as_str(), text, &copied_attachments);
-    fs::write(&note_path, markdown)
-        .map_err(|error| format!("Не удалось сохранить заметку {}: {}", note_path.display(), error))?;
+    let markdown = build_markdown(
+        &timestamp_for_file,
+        now.to_rfc3339().as_str(),
+        text,
+        &copied_attachments,
+    );
+    fs::write(&note_path, markdown).map_err(|error| {
+        format!(
+            "Не удалось сохранить заметку {}: {}",
+            note_path.display(),
+            error
+        )
+    })?;
 
     Ok(SaveCaptureResponse {
         note_path: note_path.display().to_string(),
@@ -155,7 +223,10 @@ fn copy_attachments(
             return Err(format!("Файл не найден: {}", source.display()));
         }
         if !source.is_file() {
-            return Err(format!("Можно прикреплять только файлы: {}", source.display()));
+            return Err(format!(
+                "Можно прикреплять только файлы: {}",
+                source.display()
+            ));
         }
 
         let original_name = source
@@ -271,10 +342,7 @@ fn is_image_file(path: &Path) -> bool {
         return false;
     };
 
-    matches!(
-        extension.to_ascii_lowercase().as_str(),
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "svg"
-    )
+    extension_from_supported_image_extension(extension).is_some()
 }
 
 fn detect_image_extension(
@@ -351,7 +419,11 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![save_capture, save_pasted_image])
+        .invoke_handler(tauri::generate_handler![
+            save_capture,
+            save_pasted_image,
+            save_image_from_url
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Notes Ketchup");
 }
