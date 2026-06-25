@@ -8,6 +8,10 @@ type SaveCaptureResponse = {
   attachmentCount: number;
 };
 
+type SavePastedImageResponse = {
+  path: string;
+};
+
 function getRequiredElement<T extends Element>(selector: string): T {
   const element = document.querySelector<T>(selector);
   if (!element) {
@@ -17,6 +21,7 @@ function getRequiredElement<T extends Element>(selector: string): T {
 }
 
 const noteInput = getRequiredElement<HTMLTextAreaElement>("#noteInput");
+const captureCard = getRequiredElement<HTMLElement>("#captureCard");
 const attachButton = getRequiredElement<HTMLButtonElement>("#attachButton");
 const sendButton = getRequiredElement<HTMLButtonElement>("#sendButton");
 const attachmentsEl = getRequiredElement<HTMLDivElement>("#attachments");
@@ -31,8 +36,29 @@ function fileNameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? filePath;
 }
 
+function isImageFileName(fileName: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fileName);
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith("image/") || isImageFileName(file.name);
+}
+
+function getClipboardImageFiles(data: DataTransfer | null): File[] {
+  const files = Array.from(data?.files ?? []).filter(isImageFile);
+  if (files.length > 0) {
+    return files;
+  }
+
+  return Array.from(data?.items ?? [])
+    .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => file !== null)
+    .filter(isImageFile);
+}
+
 function canSend(): boolean {
-  return noteInput.value.trim().length > 0 && !isSaving;
+  return (noteInput.value.trim().length > 0 || attachmentPaths.length > 0) && !isSaving;
 }
 
 function updateSendState() {
@@ -58,10 +84,28 @@ function renderAttachments() {
     remove.addEventListener("click", () => {
       attachmentPaths = attachmentPaths.filter((existing) => existing !== path);
       renderAttachments();
+      updateSendState();
     });
 
     item.append(name, remove);
     attachmentsEl.append(item);
+  }
+}
+
+function addAttachmentPaths(paths: string[], message?: string) {
+  const nextPaths = paths.filter(Boolean);
+  if (nextPaths.length === 0) {
+    return;
+  }
+
+  attachmentPaths = Array.from(new Set([...attachmentPaths, ...nextPaths]));
+  renderAttachments();
+  updateSendState();
+
+  if (message) {
+    setStatus(message, "success", true);
+  } else {
+    setStatus("");
   }
 }
 
@@ -107,6 +151,74 @@ document.querySelectorAll<HTMLElement>("[data-drag-handle]").forEach((element) =
   element.addEventListener("pointerdown", startWindowDrag);
 });
 
+async function savePastedImage(file: File): Promise<string> {
+  const bytes = Array.from(new Uint8Array(await file.arrayBuffer()));
+  const result = await invoke<SavePastedImageResponse>("save_pasted_image", {
+    request: {
+      bytes,
+      mimeType: file.type || null,
+      fileName: file.name || null
+    }
+  });
+
+  return result.path;
+}
+
+async function addPastedImages(files: File[]) {
+  const imageFiles = files.filter(isImageFile);
+  if (imageFiles.length === 0 || isSaving) {
+    return;
+  }
+
+  setStatus("Добавляю изображение...");
+
+  try {
+    const savedPaths = await Promise.all(imageFiles.map(savePastedImage));
+    addAttachmentPaths(savedPaths, imageFiles.length === 1 ? "Изображение добавлено" : "Изображения добавлены");
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : String(error), "error", true);
+  }
+}
+
+document.addEventListener("paste", (event) => {
+  const files = getClipboardImageFiles(event.clipboardData);
+  if (files.length === 0) {
+    return;
+  }
+
+  event.preventDefault();
+  void addPastedImages(files);
+});
+
+document.addEventListener("dragover", (event) => {
+  event.preventDefault();
+});
+
+document.addEventListener("drop", (event) => {
+  event.preventDefault();
+});
+
+void appWindow.onDragDropEvent(({ payload }) => {
+  if (payload.type === "enter" || payload.type === "over") {
+    captureCard.classList.add("is-drag-over");
+    return;
+  }
+
+  captureCard.classList.remove("is-drag-over");
+
+  if (payload.type !== "drop" || isSaving) {
+    return;
+  }
+
+  const imagePaths = payload.paths.filter(isImageFileName);
+  if (imagePaths.length === 0) {
+    setStatus("Перетащите изображение PNG, JPG, GIF, WEBP, BMP или SVG", "error", true);
+    return;
+  }
+
+  addAttachmentPaths(imagePaths, imagePaths.length === 1 ? "Изображение добавлено" : "Изображения добавлены");
+});
+
 attachButton.addEventListener("click", async () => {
   try {
     const selected = await open({
@@ -118,9 +230,7 @@ attachButton.addEventListener("click", async () => {
     if (!selected) return;
 
     const selectedPaths = Array.isArray(selected) ? selected : [selected];
-    attachmentPaths = Array.from(new Set([...attachmentPaths, ...selectedPaths]));
-    renderAttachments();
-    setStatus("");
+    addAttachmentPaths(selectedPaths);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "Не удалось выбрать файлы", "error", true);
   }

@@ -46,6 +46,24 @@ textarea {
   box-shadow: none;
 }
 
+.capture-card::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  z-index: 3;
+  border: 1px dashed transparent;
+  border-radius: 12px;
+  pointer-events: none;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.capture-card.is-drag-over::after {
+  border-color: #5c8f72;
+  background: rgba(92, 143, 114, 0.08);
+}
+
 .drag-zone {
   position: absolute;
   z-index: 4;

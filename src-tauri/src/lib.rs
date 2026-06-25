@@ -17,6 +17,14 @@ struct SaveCaptureRequest {
     attachments: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePastedImageRequest {
+    bytes: Vec<u8>,
+    mime_type: Option<String>,
+    file_name: Option<String>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SaveCaptureResponse {
@@ -24,9 +32,54 @@ struct SaveCaptureResponse {
     attachment_count: usize,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePastedImageResponse {
+    path: String,
+}
+
 #[tauri::command]
 fn save_capture(request: SaveCaptureRequest) -> Result<SaveCaptureResponse, String> {
     save_capture_to_vault(request, &PathBuf::from(VAULT_PATH))
+}
+
+#[tauri::command]
+fn save_pasted_image(request: SavePastedImageRequest) -> Result<SavePastedImageResponse, String> {
+    if request.bytes.is_empty() {
+        return Err("Изображение из буфера пустое.".to_string());
+    }
+
+    let extension = detect_image_extension(
+        &request.bytes,
+        request.mime_type.as_deref(),
+        request.file_name.as_deref(),
+    )
+    .ok_or_else(|| "Можно вставлять только изображения.".to_string())?;
+
+    let target_folder = std::env::temp_dir()
+        .join("notes-ketchup")
+        .join("pasted-images");
+    fs::create_dir_all(&target_folder).map_err(|error| {
+        format!(
+            "Не удалось создать временную папку для изображений {}: {}",
+            target_folder.display(),
+            error
+        )
+    })?;
+
+    let timestamp = Local::now().format("%Y-%m-%d_%H%M%S%.3f").to_string();
+    let target = unique_path(&target_folder, &format!("pasted-{}.{}", timestamp, extension));
+    fs::write(&target, request.bytes).map_err(|error| {
+        format!(
+            "Не удалось сохранить изображение из буфера {}: {}",
+            target.display(),
+            error
+        )
+    })?;
+
+    Ok(SavePastedImageResponse {
+        path: target.display().to_string(),
+    })
 }
 
 fn save_capture_to_vault(
@@ -224,6 +277,70 @@ fn is_image_file(path: &Path) -> bool {
     )
 }
 
+fn detect_image_extension(
+    bytes: &[u8],
+    mime_type: Option<&str>,
+    file_name: Option<&str>,
+) -> Option<&'static str> {
+    if let Some(extension) = mime_type.and_then(extension_from_mime_type) {
+        return Some(extension);
+    }
+
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+        return Some("png");
+    }
+    if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        return Some("jpg");
+    }
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        return Some("gif");
+    }
+    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        return Some("webp");
+    }
+    if bytes.starts_with(b"BM") {
+        return Some("bmp");
+    }
+
+    if let Some(file_name) = file_name {
+        if let Some(extension) = Path::new(file_name).extension().and_then(|value| value.to_str())
+        {
+            return extension_from_supported_image_extension(extension);
+        }
+    }
+
+    let trimmed_start = String::from_utf8_lossy(bytes);
+    if trimmed_start.trim_start().starts_with("<svg") {
+        return Some("svg");
+    }
+
+    None
+}
+
+fn extension_from_mime_type(mime_type: &str) -> Option<&'static str> {
+    match mime_type.to_ascii_lowercase().as_str() {
+        "image/png" => Some("png"),
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/gif" => Some("gif"),
+        "image/webp" => Some("webp"),
+        "image/bmp" => Some("bmp"),
+        "image/svg+xml" => Some("svg"),
+        _ => None,
+    }
+}
+
+fn extension_from_supported_image_extension(extension: &str) -> Option<&'static str> {
+    match extension.to_ascii_lowercase().as_str() {
+        "png" => Some("png"),
+        "jpg" | "jpeg" => Some("jpg"),
+        "gif" => Some("gif"),
+        "webp" => Some("webp"),
+        "bmp" => Some("bmp"),
+        "svg" => Some("svg"),
+        _ => None,
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -234,7 +351,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![save_capture])
+        .invoke_handler(tauri::generate_handler![save_capture, save_pasted_image])
         .run(tauri::generate_context!())
         .expect("error while running Notes Ketchup");
 }
