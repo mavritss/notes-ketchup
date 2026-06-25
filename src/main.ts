@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -11,6 +12,10 @@ type SaveCaptureResponse = {
 
 type SavePastedImageResponse = {
   path: string;
+};
+
+type ImagePreviewResponse = {
+  dataUrl: string;
 };
 
 type SketchSavedPayload = {
@@ -37,9 +42,19 @@ const appWindow = getCurrentWindow();
 let attachmentPaths: string[] = [];
 let isSaving = false;
 let statusTimer: number | undefined;
+let currentWidgetHeight = 274;
+
+const WIDGET_WIDTH = 356;
+const WIDGET_HEIGHT = 274;
+const WIDGET_HEIGHT_WITH_ATTACHMENTS = 342;
 
 function fileNameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? filePath;
+}
+
+function fileExtensionLabel(fileName: string): string {
+  const extension = fileName.split(".").filter(Boolean).at(-1);
+  return extension ? extension.toUpperCase() : "Файл";
 }
 
 function isImageFileName(fileName: string): boolean {
@@ -159,30 +174,78 @@ function updateSendState() {
   sendButton.disabled = !canSend();
 }
 
+function updateWidgetSize() {
+  const nextHeight = attachmentPaths.length > 0 ? WIDGET_HEIGHT_WITH_ATTACHMENTS : WIDGET_HEIGHT;
+  if (nextHeight === currentWidgetHeight) {
+    return;
+  }
+
+  currentWidgetHeight = nextHeight;
+  void appWindow.setSize(new LogicalSize(WIDGET_WIDTH, nextHeight));
+}
+
 function renderAttachments() {
   attachmentsEl.replaceChildren();
   attachmentsEl.hidden = attachmentPaths.length === 0;
+  updateWidgetSize();
 
   for (const path of attachmentPaths) {
+    const fileName = fileNameFromPath(path);
+    const isImage = isImageFileName(fileName);
     const item = document.createElement("div");
-    item.className = "attachment";
+    item.className = isImage ? "attachment attachment-image" : "attachment attachment-file";
 
-    const name = document.createElement("span");
-    name.textContent = fileNameFromPath(path);
+    if (isImage) {
+      const image = document.createElement("img");
+      image.className = "attachment-preview-image";
+      image.alt = "";
+      image.draggable = false;
+      void loadImagePreview(path, image, item);
+      item.append(image);
+    } else {
+      const icon = document.createElement("div");
+      icon.className = "attachment-file-icon";
+      icon.textContent = "□";
+
+      const meta = document.createElement("div");
+      meta.className = "attachment-file-meta";
+
+      const name = document.createElement("span");
+      name.className = "attachment-file-name";
+      name.textContent = fileName;
+
+      const type = document.createElement("span");
+      type.className = "attachment-file-type";
+      type.textContent = fileExtensionLabel(fileName);
+
+      meta.append(name, type);
+      item.append(icon, meta);
+    }
 
     const remove = document.createElement("button");
     remove.type = "button";
-    remove.textContent = "x";
+    remove.textContent = "×";
     remove.title = "Убрать файл";
-    remove.ariaLabel = `Убрать ${name.textContent}`;
+    remove.ariaLabel = `Убрать ${fileName}`;
     remove.addEventListener("click", () => {
       attachmentPaths = attachmentPaths.filter((existing) => existing !== path);
       renderAttachments();
       updateSendState();
     });
 
-    item.append(name, remove);
+    item.append(remove);
     attachmentsEl.append(item);
+  }
+}
+
+async function loadImagePreview(path: string, image: HTMLImageElement, item: HTMLElement) {
+  try {
+    const result = await invoke<ImagePreviewResponse>("get_image_preview", {
+      request: { path }
+    });
+    image.src = result.dataUrl;
+  } catch {
+    item.classList.add("attachment-preview-fallback");
   }
 }
 

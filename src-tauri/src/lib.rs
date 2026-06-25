@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose, Engine as _};
 use chrono::{Datelike, Local};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -33,6 +34,12 @@ struct SaveImageFromUrlRequest {
     file_name: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ImagePreviewRequest {
+    path: String,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct SaveCaptureResponse {
@@ -44,6 +51,12 @@ struct SaveCaptureResponse {
 #[serde(rename_all = "camelCase")]
 struct SavePastedImageResponse {
     path: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImagePreviewResponse {
+    data_url: String,
 }
 
 #[tauri::command]
@@ -62,7 +75,9 @@ fn save_pasted_image(request: SavePastedImageRequest) -> Result<SavePastedImageR
 }
 
 #[tauri::command]
-fn save_image_from_url(request: SaveImageFromUrlRequest) -> Result<SavePastedImageResponse, String> {
+fn save_image_from_url(
+    request: SaveImageFromUrlRequest,
+) -> Result<SavePastedImageResponse, String> {
     let url = request.url.trim();
     if !(url.starts_with("https://") || url.starts_with("http://")) {
         return Err("Можно перетаскивать только http/https изображения.".to_string());
@@ -95,6 +110,46 @@ fn save_image_from_url(request: SaveImageFromUrlRequest) -> Result<SavePastedIma
         request.file_name.as_deref(),
         "dropped",
     )
+}
+
+#[tauri::command]
+fn get_image_preview(request: ImagePreviewRequest) -> Result<ImagePreviewResponse, String> {
+    let path = PathBuf::from(request.path);
+    if !path.exists() || !path.is_file() {
+        return Err("Файл превью не найден.".to_string());
+    }
+
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .and_then(extension_from_supported_image_extension)
+        .ok_or_else(|| "Превью доступно только для изображений.".to_string())?;
+
+    let bytes = fs::read(&path)
+        .map_err(|error| format!("Не удалось прочитать превью {}: {}", path.display(), error))?;
+    if bytes.len() > 20 * 1024 * 1024 {
+        return Err("Изображение слишком большое для превью.".to_string());
+    }
+
+    let mime_type = match extension {
+        "jpg" => "image/jpeg",
+        "svg" => "image/svg+xml",
+        other => match other {
+            "png" => "image/png",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "bmp" => "image/bmp",
+            _ => "application/octet-stream",
+        },
+    };
+
+    Ok(ImagePreviewResponse {
+        data_url: format!(
+            "data:{};base64,{}",
+            mime_type,
+            general_purpose::STANDARD.encode(bytes)
+        ),
+    })
 }
 
 fn save_temp_image(
@@ -371,7 +426,9 @@ fn detect_image_extension(
     }
 
     if let Some(file_name) = file_name {
-        if let Some(extension) = Path::new(file_name).extension().and_then(|value| value.to_str())
+        if let Some(extension) = Path::new(file_name)
+            .extension()
+            .and_then(|value| value.to_str())
         {
             return extension_from_supported_image_extension(extension);
         }
@@ -422,7 +479,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             save_capture,
             save_pasted_image,
-            save_image_from_url
+            save_image_from_url,
+            get_image_preview
         ])
         .run(tauri::generate_context!())
         .expect("error while running Notes Ketchup");
