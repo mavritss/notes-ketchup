@@ -1,0 +1,19 @@
+[package]
+name = "notes-ketchup"
+version = "0.1.0"
+description = "Quick local capture app for Obsidian"
+authors = ["Notes Ketchup"]
+edition = "2021"
+
+[lib]
+name = "notes_ketchup_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
