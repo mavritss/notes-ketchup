@@ -396,7 +396,7 @@ function openSketchWindow() {
     center: true,
     resizable: true,
     decorations: false,
-    transparent: true,
+    transparent: false,
     shadow: true,
     alwaysOnTop: true,
     dragDropEnabled: false

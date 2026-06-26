@@ -181,6 +181,7 @@ function updateToolButtons() {
 
 function updateColorPreview() {
   sketchColorPreview.style.backgroundColor = sketchColor.value;
+  sketchColorPreview.style.setProperty("--sketch-color", sketchColor.value);
 }
 
 function setActiveTool(tool: SketchTool) {
@@ -476,11 +477,12 @@ window.addEventListener("resize", () => {
     resizeCanvasPair();
   }
 });
-document.addEventListener("keydown", (event) => {
-  const isUndo = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && !event.shiftKey;
+window.addEventListener("keydown", (event) => {
+  const isModifierPressed = event.ctrlKey || event.metaKey;
+  const isUndo = isModifierPressed && event.code === "KeyZ" && !event.shiftKey;
   const isRedo =
-    ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") ||
-    ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "z");
+    (isModifierPressed && event.code === "KeyY") ||
+    (isModifierPressed && event.shiftKey && event.code === "KeyZ");
 
   if (event.key === "Escape") {
     event.preventDefault();
@@ -492,7 +494,7 @@ document.addEventListener("keydown", (event) => {
     event.preventDefault();
     void redoSketch();
   }
-});
+}, true);
 
 requestAnimationFrame(() => {
   document.title = "Sketch";
