@@ -385,18 +385,19 @@ async function addDroppedImageData(data: DataTransfer | null): Promise<boolean> 
 function openSketchWindow() {
   const title = sketchTitleFromNow();
   const label = title.replace(/[^a-zA-Z0-9-/:_]/g, "-");
-  const url = `sketch.html?title=${encodeURIComponent(title)}`;
 
   const sketchWindow = new WebviewWindow(label, {
-    url,
-    title,
-    width: 720,
-    height: 560,
-    minWidth: 520,
-    minHeight: 420,
+    url: "sketch.html",
+    title: "Sketch",
+    width: 620,
+    height: 760,
+    minWidth: 560,
+    minHeight: 680,
     center: true,
     resizable: true,
-    decorations: true,
+    decorations: false,
+    transparent: true,
+    shadow: true,
     alwaysOnTop: true,
     dragDropEnabled: false
   });

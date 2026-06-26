@@ -6,21 +6,63 @@
     <title>Sketch</title>
   </head>
   <body class="sketch-document">
-    <main class="sketch-window">
-      <header class="sketch-header">
-        <input id="sketchTitleInput" class="sketch-title-input" type="text" aria-label="Название скетча" />
-      </header>
+    <main id="sketchSurface" class="sketch-window">
+      <section class="sketch-board" aria-label="Sketch canvas">
+        <canvas id="waterCanvas" class="sketch-layer"></canvas>
+        <canvas id="inkCanvas" class="sketch-layer"></canvas>
+      </section>
 
-      <canvas id="sketchCanvas" class="sketch-canvas"></canvas>
+      <div class="sketch-controls">
+        <div class="sketch-island sketch-manage-island">
+          <button id="sketchCloseButton" class="sketch-icon-button sketch-muted-button" type="button" title="Close">
+            <img src="/icons/sketch-window/close-window.svg" alt="" />
+          </button>
+          <button id="sketchUndoButton" class="sketch-icon-button" type="button" title="Undo">
+            <img src="/icons/sketch-window/go-back.svg" alt="" />
+          </button>
+          <button id="sketchRedoButton" class="sketch-icon-button" type="button" title="Redo">
+            <img src="/icons/sketch-window/go-forward.svg" alt="" />
+          </button>
+          <button id="sketchClearButton" class="sketch-icon-button" type="button" title="Clear">
+            <img src="/icons/sketch-window/delete-sketch.svg" alt="" />
+          </button>
+        </div>
 
-      <div class="sketch-toolbar">
-        <label class="sketch-size">
-          <span>Толщина</span>
-          <input id="sketchSize" type="range" min="1" max="18" value="5" />
-        </label>
-        <button id="sketchClearButton" class="sketch-action" type="button">Очистить</button>
-        <button id="sketchCloseButton" class="sketch-action" type="button">Закрыть</button>
-        <button id="sketchSaveButton" class="sketch-action sketch-save" type="button">Сохранить</button>
+        <div class="sketch-tool-stack">
+          <label class="sketch-size-island" title="Brush size">
+            <span class="sketch-size-dot"></span>
+            <input id="sketchSize" type="range" min="2" max="34" value="8" aria-label="Brush size" />
+            <span class="sketch-size-dot sketch-size-dot-large"></span>
+          </label>
+
+          <div class="sketch-tools-island" role="group" aria-label="Sketch tools">
+            <button class="sketch-tool-button is-active" type="button" data-tool="marker" title="Marker">
+              <img src="/icons/sketch-window/tool-marker.png" alt="" />
+            </button>
+            <button class="sketch-tool-button" type="button" data-tool="water" title="Water marker">
+              <img src="/icons/sketch-window/tool-water-marker.png" alt="" />
+            </button>
+            <button class="sketch-tool-button" type="button" data-tool="eraser" title="Eraser">
+              <img src="/icons/sketch-window/tool-eraser.png" alt="" />
+            </button>
+          </div>
+        </div>
+
+        <div class="sketch-right-controls">
+          <label class="sketch-color-island" title="Color">
+            <input id="sketchColor" type="color" value="#111111" aria-label="Color" />
+            <span id="sketchColorPreview" class="sketch-color-preview"></span>
+          </label>
+
+          <div class="sketch-island sketch-save-island">
+            <button id="sketchCopyButton" class="sketch-icon-button" type="button" title="Copy">
+              <img src="/icons/sketch-window/copy-sketch.svg" alt="" />
+            </button>
+            <button id="sketchSaveButton" class="sketch-icon-button sketch-add-button" type="button" title="Add sketch">
+              <img src="/icons/sketch-window/add-sketch.svg" alt="" />
+            </button>
+          </div>
+        </div>
       </div>
     </main>
     <script type="module" src="/src/sketch.ts"></script>
