@@ -353,6 +353,7 @@ html:has(body.sketch-document) {
 .sketch-window {
   width: 100vw;
   height: 100vh;
+  position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr) 136px;
   gap: 8px;
@@ -386,11 +387,54 @@ html:has(body.sketch-document) {
 }
 
 #inkCanvas {
-  cursor: crosshair;
+  cursor: none;
 }
 
-#inkCanvas[data-tool="eraser"] {
-  cursor: cell;
+.sketch-brush-cursor,
+.sketch-size-preview {
+  position: absolute;
+  width: var(--sketch-brush-diameter, 8px);
+  height: var(--sketch-brush-diameter, 8px);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 5;
+}
+
+.sketch-brush-cursor {
+  left: 0;
+  top: 0;
+  border: 1.5px solid var(--sketch-color, #111111);
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 90ms ease,
+    width 90ms ease,
+    height 90ms ease;
+}
+
+.sketch-brush-cursor.is-visible {
+  opacity: 0.85;
+}
+
+.sketch-size-preview {
+  left: 50%;
+  top: 89%;
+  z-index: 4;
+  border: 0;
+  background: #111111;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.12);
+  transform: translate(-50%, -50%);
+  transition:
+    opacity 110ms ease,
+    width 80ms ease,
+    height 80ms ease,
+    top 80ms ease;
+}
+
+.sketch-size-preview.is-visible {
+  opacity: 0.78;
 }
 
 .sketch-controls {

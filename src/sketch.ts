@@ -42,6 +42,8 @@ const inkCanvas = getRequiredElement<HTMLCanvasElement>("#inkCanvas");
 const sketchSize = getRequiredElement<HTMLInputElement>("#sketchSize");
 const sketchColor = getRequiredElement<HTMLInputElement>("#sketchColor");
 const sketchColorPreview = getRequiredElement<HTMLSpanElement>("#sketchColorPreview");
+const sketchBrushCursor = getRequiredElement<HTMLDivElement>("#sketchBrushCursor");
+const sketchSizePreview = getRequiredElement<HTMLDivElement>("#sketchSizePreview");
 const sketchClearButton = getRequiredElement<HTMLButtonElement>("#sketchClearButton");
 const sketchCloseButton = getRequiredElement<HTMLButtonElement>("#sketchCloseButton");
 const sketchUndoButton = getRequiredElement<HTMLButtonElement>("#sketchUndoButton");
@@ -55,12 +57,15 @@ const sketchWindow = getCurrentWindow();
 
 const HISTORY_LIMIT = 60;
 const CANVAS_BACKGROUND = "#fbfaf7";
+const WATER_WIDTH_MULTIPLIER = 2.2;
+const ERASER_WIDTH_MULTIPLIER = 1.4;
 
 let activeTool: SketchTool = "marker";
 let isDrawing = false;
 let hasInk = false;
 let didStrokeChange = false;
 let lastPoint: SketchPoint | null = null;
+let sizePreviewTimer: number | undefined;
 let history: SketchSnapshot[] = [];
 let historyIndex = -1;
 
@@ -182,12 +187,59 @@ function updateToolButtons() {
 function updateColorPreview() {
   sketchColorPreview.style.backgroundColor = sketchColor.value;
   sketchColorPreview.style.setProperty("--sketch-color", sketchColor.value);
+  sketchSurface.style.setProperty("--sketch-color", sketchColor.value);
 }
 
 function setActiveTool(tool: SketchTool) {
   activeTool = tool;
   inkCanvas.dataset.tool = tool;
   updateToolButtons();
+  updateBrushOverlays();
+}
+
+function brushDiameter(): number {
+  const size = Number(sketchSize.value);
+  if (activeTool === "water") return size * WATER_WIDTH_MULTIPLIER;
+  if (activeTool === "eraser") return size * ERASER_WIDTH_MULTIPLIER;
+  return size;
+}
+
+function updateBrushOverlays() {
+  const diameter = Math.max(2, brushDiameter());
+  const value = `${diameter}px`;
+  sketchSurface.style.setProperty("--sketch-brush-diameter", value);
+  sketchBrushCursor.style.width = value;
+  sketchBrushCursor.style.height = value;
+  sketchSizePreview.style.width = value;
+  sketchSizePreview.style.height = value;
+}
+
+function positionBrushCursor(point: SketchPoint) {
+  updateBrushOverlays();
+  sketchBrushCursor.style.left = `${point.x}px`;
+  sketchBrushCursor.style.top = `${point.y}px`;
+}
+
+function showBrushCursor(event: PointerEvent) {
+  positionBrushCursor(getPoint(event));
+  sketchBrushCursor.classList.add("is-visible");
+}
+
+function hideBrushCursor() {
+  sketchBrushCursor.classList.remove("is-visible");
+}
+
+function showSizePreview() {
+  window.clearTimeout(sizePreviewTimer);
+  updateBrushOverlays();
+  sketchSizePreview.classList.add("is-visible");
+}
+
+function hideSizePreviewSoon() {
+  window.clearTimeout(sizePreviewTimer);
+  sizePreviewTimer = window.setTimeout(() => {
+    sketchSizePreview.classList.remove("is-visible");
+  }, 180);
 }
 
 function getPoint(event: PointerEvent): SketchPoint {
@@ -225,7 +277,7 @@ function drawLine(from: SketchPoint, to: SketchPoint) {
   const size = Number(sketchSize.value);
 
   if (activeTool === "eraser") {
-    const eraseWidth = size * 1.4;
+    const eraseWidth = size * ERASER_WIDTH_MULTIPLIER;
     strokeOnContext(waterContext, from, to, {
       color: "#000000",
       width: eraseWidth,
@@ -239,7 +291,7 @@ function drawLine(from: SketchPoint, to: SketchPoint) {
   } else if (activeTool === "water") {
     strokeOnContext(waterContext, from, to, {
       color: sketchColor.value,
-      width: size * 2.2,
+      width: size * WATER_WIDTH_MULTIPLIER,
       alpha: 0.24
     });
     hasInk = true;
@@ -289,6 +341,7 @@ function continueStroke(event: PointerEvent) {
 
   event.preventDefault();
   const nextPoint = getPoint(event);
+  positionBrushCursor(nextPoint);
   drawLine(lastPoint, nextPoint);
   lastPoint = nextPoint;
 }
@@ -446,6 +499,14 @@ toolButtons.forEach((button) => {
 });
 
 sketchColor.addEventListener("input", updateColorPreview);
+sketchSize.addEventListener("input", () => {
+  updateBrushOverlays();
+  showSizePreview();
+});
+sketchSize.addEventListener("pointerdown", showSizePreview);
+sketchSize.addEventListener("pointerup", hideSizePreviewSoon);
+sketchSize.addEventListener("pointercancel", hideSizePreviewSoon);
+sketchSize.addEventListener("change", hideSizePreviewSoon);
 sketchClearButton.addEventListener("click", clearCanvas);
 sketchCloseButton.addEventListener("click", () => {
   void sketchWindow.close();
@@ -464,6 +525,9 @@ sketchSaveButton.addEventListener("click", () => {
 });
 
 inkCanvas.addEventListener("pointerdown", startStroke);
+inkCanvas.addEventListener("pointerenter", showBrushCursor);
+inkCanvas.addEventListener("pointermove", showBrushCursor);
+inkCanvas.addEventListener("pointerleave", hideBrushCursor);
 inkCanvas.addEventListener("pointermove", continueStroke);
 inkCanvas.addEventListener("pointerup", endStroke);
 inkCanvas.addEventListener("pointercancel", endStroke);
@@ -501,5 +565,6 @@ requestAnimationFrame(() => {
   resizeCanvasPair();
   setActiveTool("marker");
   updateColorPreview();
+  updateBrushOverlays();
   pushHistory();
 });
