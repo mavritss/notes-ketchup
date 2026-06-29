@@ -11,7 +11,7 @@ Notes Ketchup - локальное Windows desktop-приложение на Tau
 Текущий vault жестко задан в Rust:
 
 ```text
-D:\Obsidian\notes-ketchup
+D:\Obsidian\Second brain
 ```
 
 ## Не менять без явного запроса
@@ -77,7 +77,7 @@ README.md
 - `save_image_from_url` скачивает картинку по URL и сохраняет временный файл;
 - `save_pasted_image` также используется для file/blob/data-url drop-изображений и sketch PNG;
 - `copy_attachments` копирует все вложения в assets-папку vault;
-- `build_markdown` формирует frontmatter, заголовок, текст и секцию вложений;
+- `build_markdown` формирует frontmatter, заголовок, вложения без отдельного заголовка и текст;
 - `is_image_file` решает, будет ли ссылка image embed или обычной wiki-ссылкой.
 
 `src-tauri/src/main.rs` содержит:
@@ -93,13 +93,13 @@ README.md
 Заметки:
 
 ```text
-D:\Obsidian\notes-ketchup\Inbox\YYYY-MM-DD HH-MM-SS.md
+D:\Obsidian\Second brain\1 – Инбокс\YYYY-MM-DD HH-MM-SS.md
 ```
 
 Вложения:
 
 ```text
-D:\Obsidian\notes-ketchup\99 Assets\Notes Ketchup\YYYY-MM-DD\YYYY-MM-DD_HHMMSS_original-name.ext
+D:\Obsidian\Second brain\5 – Ресурсы\Notes Ketchup\YYYY-MM-DD\YYYY-MM-DD_HHMMSS_original-name.ext
 ```
 
 Markdown:
@@ -113,12 +113,10 @@ status: inbox
 
 # 2026-06-25 18-42-10
 
+![[5 – Ресурсы/Notes Ketchup/2026-06-25/image.png]]
+[[5 – Ресурсы/Notes Ketchup/2026-06-25/file.pdf]]
+
 Текст заметки.
-
-## Вложения
-
-![[99 Assets/Notes Ketchup/2026-06-25/image.png]]
-- [[99 Assets/Notes Ketchup/2026-06-25/file.pdf]]
 ```
 
 ## Сборка на этой машине

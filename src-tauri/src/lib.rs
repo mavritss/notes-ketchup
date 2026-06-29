@@ -8,9 +8,9 @@ use std::{
 };
 use tauri::Manager;
 
-const VAULT_PATH: &str = r"D:\Obsidian\notes-ketchup";
-const INBOX_FOLDER: &str = "Inbox";
-const ASSETS_FOLDER: &str = r"99 Assets\Notes Ketchup";
+const VAULT_PATH: &str = r"D:\Obsidian\Second brain";
+const INBOX_FOLDER: &str = "1 – Инбокс";
+const ASSETS_FOLDER: &str = r"5 – Ресурсы\Notes Ketchup";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -308,7 +308,7 @@ fn copy_attachments(
 
         copied.push(CopiedAttachment {
             relative_path: format!(
-                "99 Assets/Notes Ketchup/{}/{}",
+                "5 – Ресурсы/Notes Ketchup/{}/{}",
                 date_folder, stored_file_name
             ),
             is_image: is_image_file(&target),
@@ -332,20 +332,20 @@ fn build_markdown(
     markdown.push_str("---\n\n");
     markdown.push_str(&format!("# {}\n\n", title));
 
-    if !text.is_empty() {
-        markdown.push_str(text);
-        markdown.push_str("\n\n");
-    }
-
     if !attachments.is_empty() {
-        markdown.push_str("## Вложения\n\n");
         for attachment in attachments {
             if attachment.is_image {
                 markdown.push_str(&format!("![[{}]]\n", attachment.relative_path));
             } else {
-                markdown.push_str(&format!("- [[{}]]\n", attachment.relative_path));
+                markdown.push_str(&format!("[[{}]]\n", attachment.relative_path));
             }
         }
+        markdown.push('\n');
+    }
+
+    if !text.is_empty() {
+        markdown.push_str(text);
+        markdown.push_str("\n\n");
     }
 
     markdown
@@ -514,7 +514,15 @@ mod tests {
         let note = fs::read_to_string(&response.note_path).expect("note should be readable");
         assert!(note.contains("Тестовая заметка"));
         assert!(note.contains("source: notes-ketchup"));
-        assert!(note.contains("![[99 Assets/Notes Ketchup/"));
+        assert!(note.contains("![[5 – Ресурсы/Notes Ketchup/"));
+        assert!(!note.contains("## Вложения"));
+        let attachment_position = note
+            .find("![[5 – Ресурсы/Notes Ketchup/")
+            .expect("attachment should be embedded");
+        let text_position = note
+            .find("Тестовая заметка")
+            .expect("text should be present");
+        assert!(attachment_position < text_position);
         assert_eq!(response.attachment_count, 1);
 
         fs::remove_dir_all(&root).expect("test root should be removed");
