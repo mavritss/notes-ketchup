@@ -326,9 +326,17 @@ fn build_markdown(
 ) -> String {
     let mut markdown = String::new();
     markdown.push_str("---\n");
-    markdown.push_str(&format!("created: {}\n", created));
-    markdown.push_str("source: notes-ketchup\n");
+    markdown.push_str("type: note\n");
     markdown.push_str("status: inbox\n");
+    markdown.push_str("folder_id: inbox\n");
+    markdown.push_str(&format!("created: {}\n", created));
+    markdown.push_str(&format!("updated: {}\n", created));
+    markdown.push_str("source: notes-ketchup\n");
+    markdown.push_str("domains: []\n");
+    markdown.push_str("topics: []\n");
+    markdown.push_str("tags: []\n");
+    markdown.push_str("summary: \"\"\n");
+    markdown.push_str("related: []\n");
     markdown.push_str("---\n\n");
     markdown.push_str(&format!("# {}\n\n", title));
 
@@ -513,7 +521,15 @@ mod tests {
 
         let note = fs::read_to_string(&response.note_path).expect("note should be readable");
         assert!(note.contains("Тестовая заметка"));
+        assert!(note.contains("type: note"));
+        assert!(note.contains("status: inbox"));
+        assert!(note.contains("folder_id: inbox"));
         assert!(note.contains("source: notes-ketchup"));
+        assert!(note.contains("domains: []"));
+        assert!(note.contains("topics: []"));
+        assert!(note.contains("tags: []"));
+        assert!(note.contains("summary: \"\""));
+        assert!(note.contains("related: []"));
         assert!(note.contains("![[5 – Ресурсы/Notes Ketchup/"));
         assert!(!note.contains("## Вложения"));
         let attachment_position = note

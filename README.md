@@ -50,9 +50,17 @@ D:\Obsidian\Second brain\5 – Ресурсы\Notes Ketchup\YYYY-MM-DD
 
 ```markdown
 ---
-created: 2026-06-25T18:42:10+05:00
-source: notes-ketchup
+type: note
 status: inbox
+folder_id: inbox
+created: 2026-06-25T18:42:10+05:00
+updated: 2026-06-25T18:42:10+05:00
+source: notes-ketchup
+domains: []
+topics: []
+tags: []
+summary: ""
+related: []
 ---
 
 # 2026-06-25 18-42-10
@@ -99,6 +107,7 @@ Backend:
 - `unique_path` защищает от перезаписи файлов.
 - `sanitize_file_name` чистит имена вложений.
 - `is_image_file` определяет, вставлять ли вложение как Obsidian image embed.
+- `build_markdown` пишет нейтральную inbox-заготовку frontmatter (`type: note`, `folder_id: inbox`, пустые `tags/topics/domains/related`, пустой `summary`) для последующего triage.
 
 ## Управление
 

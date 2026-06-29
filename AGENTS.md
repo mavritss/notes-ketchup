@@ -106,9 +106,17 @@ Markdown:
 
 ```markdown
 ---
-created: 2026-06-25T18:42:10+05:00
-source: notes-ketchup
+type: note
 status: inbox
+folder_id: inbox
+created: 2026-06-25T18:42:10+05:00
+updated: 2026-06-25T18:42:10+05:00
+source: notes-ketchup
+domains: []
+topics: []
+tags: []
+summary: ""
+related: []
 ---
 
 # 2026-06-25 18-42-10
@@ -118,6 +126,10 @@ status: inbox
 
 Текст заметки.
 ```
+
+Новые capture-заметки должны оставаться нейтральными: не угадывать теги,
+домены, темы или итоговый тип при сохранении из Notes Ketchup. Эти поля
+заполняются позже triage-процессом в Obsidian/Codex.
 
 ## Сборка на этой машине
 
