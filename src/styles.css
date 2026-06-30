@@ -68,7 +68,6 @@ input {
 .drag-zone {
   position: absolute;
   z-index: 4;
-  cursor: move;
 }
 
 .drag-zone-top {
@@ -374,7 +373,7 @@ html:has(body.sketch-document) {
   overflow: hidden;
   border: 2px dashed #d7d1c8;
   border-radius: 7px;
-  background: #fbfaf7;
+  background: var(--sketch-background-color, #fbfaf7);
 }
 
 .sketch-layer {
@@ -518,15 +517,6 @@ html:has(body.sketch-document) {
   width: 22px;
   height: 22px;
   display: block;
-}
-
-.sketch-muted-button {
-  background: #f0f0f0;
-}
-
-.sketch-muted-button img {
-  width: 19px;
-  height: 24px;
 }
 
 .sketch-history-cluster {
@@ -699,16 +689,26 @@ html:has(body.sketch-document) {
 }
 
 .sketch-color-island {
-  width: 54px;
+  width: 100px;
   height: 54px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 999px;
+}
+
+.sketch-color-control {
+  width: 42px;
+  height: 42px;
   position: relative;
   display: grid;
   place-items: center;
-  border-radius: 50%;
   cursor: pointer;
 }
 
-.sketch-color-island input {
+.sketch-color-control input {
   width: 100%;
   height: 100%;
   position: absolute;
@@ -727,6 +727,51 @@ html:has(body.sketch-document) {
   box-shadow: 0 0 0 3px var(--sketch-color, #111111);
 }
 
+.sketch-background-preview {
+  background: #fbfaf7;
+  box-shadow: 0 0 0 2px #d7d1c8;
+}
+
 .sketch-save-island {
-  min-width: 100px;
+  min-width: 54px;
+}
+
+.sketch-close-button {
+  width: 42px;
+  height: 42px;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 3px 5.6px rgba(58, 45, 38, 0.11);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.sketch-close-button:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.sketch-close-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.sketch-close-button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.sketch-close-button img {
+  width: 13px;
+  height: 14px;
+  display: block;
 }

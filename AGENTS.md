@@ -1,43 +1,45 @@
 # AGENTS.md
 
-Подсказка для ИИ-ассистентов, которые продолжают разработку Notes Ketchup.
+A guide for AI assistants continuing development of Notes Ketchup.
 
-## Суть проекта
+## Project Essence
 
-Notes Ketchup - локальное Windows desktop-приложение на Tauri 2 для быстрых заметок в Obsidian vault.
+Notes Ketchup is a local Windows desktop application built with Tauri 2 for quickly capturing notes into an Obsidian vault.
 
-Главная цель: быстро и надежно записать текст/вложения в локальный vault, ничего не потерять, не требовать запущенный Obsidian, не усложнять стек.
+The main goal is to quickly and reliably save text and attachments into a local vault, without losing anything, without requiring Obsidian to be running, and without overcomplicating the stack.
 
-Текущий vault жестко задан в Rust:
+The current vault is hardcoded in Rust:
 
 ```text
 D:\Obsidian\Second brain
 ```
 
-## Не менять без явного запроса
+## Do Not Change Without An Explicit Request
 
-- Не переводить проект на React, Svelte, Vue или другой framework.
-- Не заменять Tauri на Electron.
-- Не добавлять backend-сервер.
-- Не добавлять облачную синхронизацию, AI-организацию заметок, Git-автоматизацию или Obsidian-плагин без прямого запроса пользователя.
-- Не менять формат Markdown и папки vault без обсуждения.
-- Не делать широкие рефакторы ради вкуса. Изменения должны быть маленькими и совместимыми с текущей архитектурой.
+- Do not migrate the project to React, Svelte, Vue, or any other framework.
+- Do not replace Tauri with Electron.
+- Do not add a backend server.
+- Do not add cloud sync, AI note organization, Git automation, or an Obsidian plugin unless the user directly asks for it.
+- Do not change the Markdown format or vault folders without discussion.
+- Do not do broad refactors for personal taste. Changes must be small and compatible with the current architecture.
 
-## Текущий стек
+## Current Stack
 
 - Tauri 2
 - Rust backend
 - TypeScript frontend
 - Vite
-- Plain HTML/CSS без frontend-framework
-- `tauri-plugin-dialog` для выбора файлов
-- `ureq` для backend-загрузки изображений по URL из browser drag-and-drop
+- Plain HTML/CSS without a frontend framework
+- `tauri-plugin-dialog` for file selection
+- `ureq` for backend image downloads by URL from browser drag-and-drop
 
-## Важные файлы
+## Important Files
 
 ```text
 index.html
+sketch.html
 src/main.ts
+src/sketch.ts
 src/styles.css
 src-tauri/src/main.rs
 src-tauri/src/lib.rs
@@ -47,56 +49,66 @@ src-tauri/Cargo.toml
 README.md
 ```
 
-## Как работает приложение
+## How The Application Works
 
-`index.html` содержит одно компактное окно:
+`index.html` contains one compact main window:
 
-- textarea для заметки;
-- список вложений;
-- строку статуса;
-- toolbar с кнопками микрофона, файла, скетча и отправки.
+- a textarea for the note;
+- an attachment list;
+- a status line;
+- a toolbar with microphone, file, sketch, and submit buttons.
 
 `src/main.ts`:
 
-- хранит `attachmentPaths`;
-- включает кнопку отправки, если есть текст или хотя бы одно вложение;
-- открывает системный выбор файлов через `@tauri-apps/plugin-dialog`;
-- принимает картинки из буфера через `Ctrl+V`;
-- принимает локальные картинки через Tauri drag-and-drop;
-- принимает изображения, перетащенные из браузера/других программ, через HTML5 drop; для этого у main window `dragDropEnabled: false`;
-- сохраняет file/blob/data-url на frontend через `save_pasted_image`;
-- сохраняет http/https image URL через Rust-команду `save_image_from_url`, чтобы не упираться в CORS;
-- открывает отдельное sketch-окно, сохраняет PNG и добавляет его в текущие вложения;
-- вызывает Rust-команды `save_capture` и `save_pasted_image`;
-- очищает форму только после успешного сохранения.
+- stores `attachmentPaths`;
+- enables the submit button if there is text or at least one attachment;
+- supports `Ctrl+Enter` for saving from the main window;
+- opens the system file picker through `@tauri-apps/plugin-dialog`;
+- accepts images from the clipboard through `Ctrl+V`;
+- accepts local image files through HTML5 drag-and-drop;
+- accepts images dragged from the browser or other programs through HTML5 drop; for this, the main window has `dragDropEnabled: false`;
+- saves file/blob/data-url images through `save_pasted_image`;
+- saves http/https image URLs through the Rust command `save_image_from_url`, so it does not run into CORS limitations;
+- opens a separate sketch window, receives the saved PNG, and adds it to the current attachments;
+- calls the Rust commands `save_capture`, `save_pasted_image`, `save_image_from_url`, and `get_image_preview`;
+- clears the form only after a successful save.
+
+`sketch.html` and `src/sketch.ts`:
+
+- implement a separate resizable sketch window;
+- use native HTML canvas without a drawing library;
+- provide marker, water marker, eraser, brush size, stroke color, background color, undo/redo, clear, copy, save, and close controls;
+- export PNG on copy/save;
+- send a `sketch-saved` event to the main window after saving through `save_pasted_image`.
 
 `src-tauri/src/lib.rs`:
 
-- `save_capture` создает Markdown-заметку;
-- `save_pasted_image` сохраняет вставленную из буфера картинку во временную папку;
-- `save_image_from_url` скачивает картинку по URL и сохраняет временный файл;
-- `save_pasted_image` также используется для file/blob/data-url drop-изображений и sketch PNG;
-- `copy_attachments` копирует все вложения в assets-папку vault;
-- `build_markdown` формирует frontmatter, заголовок, вложения без отдельного заголовка и текст;
-- `is_image_file` решает, будет ли ссылка image embed или обычной wiki-ссылкой.
+- `save_capture` creates a Markdown note;
+- `save_pasted_image` saves an image into a temporary folder;
+- `save_image_from_url` downloads an image by URL and saves it as a temporary file;
+- `get_image_preview` returns preview data for image attachments;
+- `save_pasted_image` is also used for file/blob/data-url drop images and sketch PNGs;
+- `copy_attachments` copies all attachments into the vault assets folder;
+- `build_markdown` generates the frontmatter, title, attachments without a separate heading, and text;
+- `is_image_file` decides whether a link should be an image embed or a regular wiki link.
 
-`src-tauri/src/main.rs` содержит:
+`src-tauri/src/main.rs` contains:
 
 ```rust
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 ```
 
-Эта строка нужна, чтобы release `.exe` запускался без пустого системного `cmd`-окна. Не удалять.
+This line is needed so the release `.exe` starts without an empty system `cmd` window. Do not remove it.
 
-## Формат данных
+## Data Format
 
-Заметки:
+Notes:
 
 ```text
 D:\Obsidian\Second brain\1 – Инбокс\YYYY-MM-DD HH-MM-SS.md
 ```
 
-Вложения:
+Attachments:
 
 ```text
 D:\Obsidian\Second brain\5 – Ресурсы\Notes Ketchup\YYYY-MM-DD\YYYY-MM-DD_HHMMSS_original-name.ext
@@ -124,108 +136,106 @@ related: []
 ![[5 – Ресурсы/Notes Ketchup/2026-06-25/image.png]]
 [[5 – Ресурсы/Notes Ketchup/2026-06-25/file.pdf]]
 
-Текст заметки.
+Note text.
 ```
 
-Новые capture-заметки должны оставаться нейтральными: не угадывать теги,
-домены, темы или итоговый тип при сохранении из Notes Ketchup. Эти поля
-заполняются позже triage-процессом в Obsidian/Codex.
+New capture notes must remain neutral: do not infer tags, domains, topics, or the final type when saving from Notes Ketchup. These fields are filled in later by the triage process in Obsidian/Codex.
 
-## Сборка на этой машине
+## Build On This Machine
 
-Обычная PowerShell-сессия может не видеть `cargo`. Используйте Visual Studio developer environment:
+A regular PowerShell session may not see `cargo`. Use the Visual Studio developer environment:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && set PATH=C:\Users\tema mavrits\.cargo\bin;%PATH% && npm.cmd run build"
 ```
 
-Dev-режим:
+Dev mode:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && set PATH=C:\Users\tema mavrits\.cargo\bin;%PATH% && npm.cmd run dev"
 ```
 
-Готовый exe:
+Ready exe:
 
 ```text
 src-tauri\target\release\notes-ketchup.exe
 ```
 
-Установщики:
+Installers:
 
 ```text
 src-tauri\target\release\bundle\nsis\Notes Ketchup_0.1.0_x64-setup.exe
 src-tauri\target\release\bundle\msi\Notes Ketchup_0.1.0_x64_en-US.msi
 ```
 
-## Проверки перед сдачей
+## Checks Before Handoff
 
-Минимум:
+Minimum:
 
 ```powershell
 npm.cmd run build:vite
 ```
 
-Лучше:
+Better:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && set PATH=C:\Users\tema mavrits\.cargo\bin;%PATH% && npm.cmd run build"
 ```
 
-Проверка, что release exe без консоли:
+Check that the release exe has no console:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && dumpbin /headers src-tauri\target\release\notes-ketchup.exe | findstr /i subsystem"
 ```
 
-Ожидаемо:
+Expected:
 
 ```text
 2 subsystem (Windows GUI)
 ```
 
-## UX-правила
+## UX Rules
 
-- Окно компактное, утилитарное, без landing page.
-- Не добавлять большие декоративные блоки.
-- Не ломать режим always-on-top.
-- Сохранять можно, если есть текст или вложение.
-- При ошибке не очищать textarea и список вложений.
-- После успеха очищать textarea и список вложений.
-- Статусы должны быть короткими и понятными.
+- The windows are compact, utilitarian, and have no landing page.
+- Do not add large decorative blocks.
+- Do not break always-on-top mode.
+- The main window can be moved by its inner padding without changing the cursor.
+- The main and sketch windows are resizable.
+- Saving is allowed if there is text or an attachment.
+- On error, do not clear the textarea or the attachment list.
+- After success, clear the textarea and attachment list.
+- Status messages must be short and clear.
 
-## Текущие возможности
+## Current Features
 
-- Текстовая заметка.
-- Вложения через кнопку файла.
-- Картинки через `Ctrl+V`.
-- Картинки-файлы через HTML5 drag-and-drop.
-- Картинки из браузера/других программ через DOM drop: file/blob/data-url сохраняются напрямую, http/https URL скачиваются Rust-командой.
-- Заметка только с вложением.
-- Базовые скетчи в отдельном окне: редактируемое название, черный цвет, выбор толщины, очистка, закрытие без сохранения, сохранение PNG во вложения.
-- Release exe без отдельного `cmd`.
+- Text note.
+- Attachments through the file button.
+- Images through `Ctrl+V`.
+- Image files through HTML5 drag-and-drop.
+- Images from the browser or other programs through DOM drop: file/blob/data-url images are saved directly, while http/https URLs are downloaded by a Rust command.
+- Note with attachment only.
+- `Ctrl+Enter` save hotkey in the main window.
+- Basic sketches in a separate window: marker/water marker/eraser, size selection, stroke color, background color, undo/redo, clear, copy image, close without saving, save PNG into attachments.
+- Release exe without a separate `cmd`.
 
-## Скетчи
+## Sketches
 
-Базовый sketch-режим уже реализован как отдельная Vite-страница `sketch.html` с кодом в `src/sketch.ts`.
+The sketch mode is implemented as a separate Vite page, `sketch.html`, with code in `src/sketch.ts`.
 
-Текущая архитектура:
+Current architecture:
 
-- главное окно создает `WebviewWindow` с label `sketch-*`;
-- capabilities должны включать `core:webview:allow-create-webview-window`, `core:window:allow-close`, `core:window:allow-set-title`;
-- используется HTML canvas;
-- название скетча редактируется в input и синхронизируется с title окна;
-- закрытие окна ничего не сохраняет;
-- инструменты сейчас: black pen, size, clear, save, close;
-- при сохранении экспортировать PNG;
-- PNG сохраняется через `save_pasted_image`, а затем sketch-окно отправляет событие `sketch-saved` в `main`.
+- the main window creates a `WebviewWindow` with label `sketch-*`;
+- capabilities must include `core:webview:allow-create-webview-window`, `core:window:allow-close`, and `core:window:allow-start-dragging`;
+- HTML canvas is used;
+- closing the window saves nothing;
+- current tools: marker, water marker, eraser, size, stroke color, background color, undo/redo, clear, copy, save, close;
+- on copy/save, export PNG;
+- the PNG is saved through `save_pasted_image`, and then the sketch window sends a `sketch-saved` event to `main`.
 
-Следующие шаги:
+Next steps:
 
-- eraser;
-- undo/redo;
-- colors;
-- сохранять JSON-исходник рядом с PNG для редактирования;
-- открывать существующие скетчи.
+- editable sketch names;
+- save the JSON source next to the PNG for editing;
+- open existing sketches.
 
-Не добавлять отдельную библиотеку рисования, пока не станет ясно, что native canvas-реализации недостаточно.
+Do not add a separate drawing library until it is clear that the native canvas implementation is not enough.

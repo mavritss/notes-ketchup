@@ -12,12 +12,15 @@
         <canvas id="inkCanvas" class="sketch-layer"></canvas>
         <div id="sketchBrushCursor" class="sketch-brush-cursor" aria-hidden="true"></div>
         <div id="sketchSizePreview" class="sketch-size-preview" aria-hidden="true"></div>
+        <button id="sketchCloseButton" class="sketch-close-button" type="button" title="Close">
+          <img src="/icons/sketch-window/close-window.svg" alt="" />
+        </button>
       </section>
 
       <div class="sketch-controls">
         <div class="sketch-island sketch-manage-island">
-          <button id="sketchCloseButton" class="sketch-icon-button sketch-muted-button" type="button" title="Close">
-            <img src="/icons/sketch-window/close-window.svg" alt="" />
+          <button id="sketchClearButton" class="sketch-icon-button" type="button" title="Clear">
+            <img src="/icons/sketch-window/delete-sketch.svg" alt="" />
           </button>
           <span class="sketch-history-cluster">
             <button id="sketchUndoButton" class="sketch-icon-button sketch-history-button" type="button" title="Undo">
@@ -27,8 +30,8 @@
               <img src="/icons/sketch-window/go-forward.svg" alt="" />
             </button>
           </span>
-          <button id="sketchClearButton" class="sketch-icon-button" type="button" title="Clear">
-            <img src="/icons/sketch-window/delete-sketch.svg" alt="" />
+          <button id="sketchCopyButton" class="sketch-icon-button" type="button" title="Copy">
+            <img src="/icons/sketch-window/copy-sketch.svg" alt="" />
           </button>
         </div>
 
@@ -53,15 +56,18 @@
         </div>
 
         <div class="sketch-right-controls">
-          <label class="sketch-color-island" title="Color">
-            <input id="sketchColor" type="color" value="#111111" aria-label="Color" />
-            <span id="sketchColorPreview" class="sketch-color-preview"></span>
-          </label>
+          <div class="sketch-color-island" role="group" aria-label="Sketch colors">
+            <label class="sketch-color-control" title="Color">
+              <input id="sketchColor" type="color" value="#111111" aria-label="Color" />
+              <span id="sketchColorPreview" class="sketch-color-preview"></span>
+            </label>
+            <label class="sketch-color-control" title="Background">
+              <input id="sketchBackgroundColor" type="color" value="#fbfaf7" aria-label="Background" />
+              <span id="sketchBackgroundPreview" class="sketch-color-preview sketch-background-preview"></span>
+            </label>
+          </div>
 
           <div class="sketch-island sketch-save-island">
-            <button id="sketchCopyButton" class="sketch-icon-button" type="button" title="Copy">
-              <img src="/icons/sketch-window/copy-sketch.svg" alt="" />
-            </button>
             <button id="sketchSaveButton" class="sketch-icon-button sketch-add-button" type="button" title="Add sketch">
               <img src="/icons/sketch-window/add-sketch.svg" alt="" />
             </button>

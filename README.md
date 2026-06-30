@@ -1,52 +1,53 @@
 # Notes Ketchup
 
-Notes Ketchup - небольшое Windows desktop-приложение для быстрых заметок в Obsidian vault.
+Notes Ketchup is a small local Windows desktop application for quick notes in an Obsidian vault.
 
-Приложение живет поверх других окон, принимает текст и вложения, а затем создает обычный Markdown-файл в локальном vault. Obsidian может быть закрыт: Notes Ketchup работает напрямую с файловой системой.
+The application stays on top of other windows, accepts text and attachments, and then creates a regular Markdown file in a local vault. Obsidian can be closed: Notes Ketchup works directly with the file system.
 
-## Что делает приложение
+## What The Application Does
 
-- показывает компактное окно без стандартной рамки;
-- держит окно поверх остальных окон;
-- позволяет написать текстовую заметку;
-- позволяет прикрепить файлы через системный выбор файла;
-- позволяет добавить изображения через `Ctrl+V`;
-- позволяет добавить изображения через drag-and-drop как файлов, так и данных/ссылок из браузера и других программ;
-- позволяет открыть отдельное окно скетча, переименовать его, нарисовать черным цветом, выбрать толщину и прикрепить PNG;
-- позволяет сохранить заметку только с вложением, без текста;
-- копирует вложения в папку assets внутри vault;
-- создает Markdown-заметку с frontmatter и Obsidian-ссылками;
-- в release-сборке запускается как Windows GUI-приложение без отдельного `cmd`-окна.
+- shows a compact frameless main window;
+- keeps the main and sketch windows on top of other windows;
+- lets the main window be moved by its inner padding and resized manually;
+- lets you write a text note;
+- lets you attach files through the system file picker;
+- lets you add images through `Ctrl+V`;
+- lets you add images through HTML5 drag-and-drop, both as files and as data/links from the browser and other programs;
+- lets you save a note with an attachment only, without text;
+- copies attachments into the assets folder inside the vault;
+- creates a Markdown note with frontmatter and Obsidian links;
+- opens a separate resizable sketch window with marker, water marker, eraser, undo/redo, clear, copy, background color, and add-to-note actions;
+- in the release build, starts as a Windows GUI application without a separate `cmd` window.
 
-## Текущий vault
+## Current Vault
 
-Путь сейчас зафиксирован в Rust-коде:
+The path is currently fixed in Rust code:
 
 ```text
 D:\Obsidian\Second brain
 ```
 
-Заметки создаются здесь:
+Notes are created here:
 
 ```text
 D:\Obsidian\Second brain\1 – Инбокс
 ```
 
-Вложения копируются сюда:
+Attachments are copied here:
 
 ```text
 D:\Obsidian\Second brain\5 – Ресурсы\Notes Ketchup\YYYY-MM-DD
 ```
 
-## Формат заметки
+## Note Format
 
-Имя заметки строится по локальной дате и времени:
+The note name is built from the local date and time:
 
 ```text
 2026-06-25 18-42-10.md
 ```
 
-Пример Markdown:
+Markdown example:
 
 ```markdown
 ---
@@ -65,29 +66,30 @@ related: []
 
 # 2026-06-25 18-42-10
 
-Текст заметки.
-
 ![[5 – Ресурсы/Notes Ketchup/2026-06-25/2026-06-25_184210_photo.png]]
 [[5 – Ресурсы/Notes Ketchup/2026-06-25/2026-06-25_184210_document.pdf]]
+
+Note text.
 ```
 
-Изображения вставляются через `![[...]]`, остальные файлы - через обычные Obsidian wiki-ссылки.
+Images are inserted through `![[...]]`; all other files are inserted through regular Obsidian wiki links.
 
-## Архитектура
+## Architecture
 
-Проект сделан на Tauri 2 без React/Svelte/Vue.
+The project is built with Tauri 2 without React/Svelte/Vue.
 
 ```text
 notes-ketchup/
   index.html
+  sketch.html
   src/
-    main.ts        # логика главного окна, вставка, drag-and-drop, создание sketch-окон, IPC-вызовы
-    sketch.ts      # отдельное окно скетча, canvas, сохранение PNG
-    styles.css     # внешний вид компактного окна
-  icons/           # SVG-иконки кнопок
+    main.ts        # main window logic, paste, drag-and-drop, sketch window creation, IPC calls
+    sketch.ts      # separate sketch window, canvas drawing, PNG copy/save
+    styles.css     # main window and sketch window appearance
+  icons/           # button icons and sketch tool images
   src-tauri/
     src/main.rs    # entrypoint; release Windows GUI subsystem
-    src/lib.rs     # Tauri commands, запись заметок, копирование вложений
+    src/lib.rs     # Tauri commands, note writing, attachment copying
     tauri.conf.json
     capabilities/default.json
     Cargo.toml
@@ -95,117 +97,121 @@ notes-ketchup/
 
 Frontend:
 
-- `index.html` содержит статическую разметку окна.
-- `src/main.ts` управляет состоянием формы и вызывает Rust-команды через Tauri IPC.
-- `src/styles.css` отвечает за компактный вид главного окна, toolbar, статусы, подсветку drag-and-drop и окно скетча.
+- `index.html` contains the static main window markup.
+- `sketch.html` contains the static sketch window markup.
+- `src/main.ts` manages main-window form state and calls Rust commands through Tauri IPC.
+- `src/sketch.ts` manages canvas drawing, sketch history, copying, and saving.
+- `src/styles.css` handles the compact appearance of both windows, toolbar controls, statuses, drag-and-drop highlighting, and sketch controls.
 
 Backend:
 
-- `save_capture` создает Markdown-заметку и копирует вложения в vault.
-- `save_pasted_image` принимает байты изображения из буфера, сохраняет временный файл, после чего он идет в общий поток вложений.
-- `save_image_from_url` скачивает изображение по URL из browser drag-and-drop без CORS-ограничений WebView.
-- `unique_path` защищает от перезаписи файлов.
-- `sanitize_file_name` чистит имена вложений.
-- `is_image_file` определяет, вставлять ли вложение как Obsidian image embed.
-- `build_markdown` пишет нейтральную inbox-заготовку frontmatter (`type: note`, `folder_id: inbox`, пустые `tags/topics/domains/related`, пустой `summary`) для последующего triage.
+- `save_capture` creates a Markdown note and copies attachments into the vault.
+- `save_pasted_image` accepts image bytes from the clipboard, dropped files/data URLs, and sketch PNGs, then saves a temporary file for the shared attachment flow.
+- `save_image_from_url` downloads an image by URL from browser drag-and-drop without WebView CORS limitations.
+- `get_image_preview` returns a data URL for image attachment previews.
+- `unique_path` protects against overwriting files.
+- `sanitize_file_name` cleans attachment file names.
+- `is_image_file` determines whether an attachment should be inserted as an Obsidian image embed.
+- `build_markdown` writes a neutral inbox frontmatter draft (`type: note`, `folder_id: inbox`, empty `tags/topics/domains/related`, empty `summary`) for later triage.
 
-## Управление
+## Controls
 
-- `Ctrl+Enter` - сохранить заметку.
-- Кнопка со стрелкой - сохранить заметку.
-- Кнопка файла - выбрать вложения через системный диалог.
-- `Ctrl+V` - вставить изображение из буфера.
-- Drag-and-drop изображения в окно - добавить изображение как вложение.
-- Кнопка скетча - открыть отдельное окно `sketch-YYYY-MM-DD_HH-MM-SS`, изменить название, нарисовать черным цветом, выбрать толщину и сохранить PNG как вложение.
+- `Ctrl+Enter` - save the note from the main window.
+- Arrow button - save the note.
+- File button - choose attachments through the system dialog.
+- `Ctrl+V` - paste an image from the clipboard.
+- Drag-and-drop an image into the main window - add the image as an attachment.
+- Sketch button - open a separate sketch window.
+- In the sketch window: draw with marker/water marker/eraser, adjust size and colors, undo/redo, clear, copy PNG, close without saving, or add PNG to the current note.
 
-Кнопка микрофона пока остается заготовкой.
+The microphone button is still a placeholder.
 
-## Сборка
+## Build
 
-В этой рабочей машине Rust установлен в пользовательской папке:
+On this workstation, Rust is installed in the user folder:
 
 ```text
 C:\Users\tema mavrits\.cargo\bin
 ```
 
-Для надежной сборки Tauri под Windows команды нужно запускать через Visual Studio developer environment:
+For reliable Tauri builds on Windows, commands must be run through the Visual Studio developer environment:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && set PATH=C:\Users\tema mavrits\.cargo\bin;%PATH% && npm.cmd run build"
 ```
 
-Для dev-режима:
+For dev mode:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && set PATH=C:\Users\tema mavrits\.cargo\bin;%PATH% && npm.cmd run dev"
 ```
 
-Обычный PowerShell может не видеть `cargo`, даже если Rust установлен. Это не значит, что Rust отсутствует: используйте команду выше.
+A regular PowerShell session may not see `cargo`, even if Rust is installed. This does not mean Rust is missing: use the command above.
 
-## Артефакты сборки
+## Build Artifacts
 
-Готовый exe:
+Ready exe:
 
 ```text
 src-tauri\target\release\notes-ketchup.exe
 ```
 
-NSIS-установщик:
+NSIS installer:
 
 ```text
 src-tauri\target\release\bundle\nsis\Notes Ketchup_0.1.0_x64-setup.exe
 ```
 
-MSI-установщик:
+MSI installer:
 
 ```text
 src-tauri\target\release\bundle\msi\Notes Ketchup_0.1.0_x64_en-US.msi
 ```
 
-Release exe должен иметь subsystem `Windows GUI`, а не `Windows CUI`. Это проверяется так:
+The release exe must have the `Windows GUI` subsystem, not `Windows CUI`. This is checked as follows:
 
 ```powershell
 cmd /c "call ""C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat"" -arch=x64 && dumpbin /headers src-tauri\target\release\notes-ketchup.exe | findstr /i subsystem"
 ```
 
-Ожидаемая строка:
+Expected line:
 
 ```text
 2 subsystem (Windows GUI)
 ```
 
-## Проверка после изменений
+## Check After Changes
 
-1. Собрать приложение командой из раздела "Сборка".
-2. Запустить `src-tauri\target\release\notes-ketchup.exe`.
-3. Убедиться, что пустое `cmd`-окно не появляется.
-4. Ввести текст и сохранить заметку.
-5. Прикрепить файл через кнопку файла и сохранить.
-6. Вставить картинку через `Ctrl+V` и сохранить заметку без текста.
-7. Перетащить картинку-файл в окно и сохранить заметку без текста.
-8. Перетащить изображение из браузера или другой программы. Если источник передал файл/blob/data-url или прямую ссылку на изображение, оно добавится как вложение.
-9. Создать скетч кнопкой скетча, изменить название окна, сохранить его и убедиться, что PNG с этим названием появился в списке вложений.
-10. Проверить, что `.md` появился в `D:\Obsidian\Second brain\1 – Инбокс`.
-11. Проверить, что вложения появились в `5 – Ресурсы\Notes Ketchup\YYYY-MM-DD`.
-12. Открыть заметку в Obsidian и проверить, что image embeds отображаются.
+1. Build the application with the command from the "Build" section.
+2. Run `src-tauri\target\release\notes-ketchup.exe`.
+3. Make sure an empty `cmd` window does not appear.
+4. Enter text and save a note.
+5. Attach a file through the file button and save.
+6. Paste an image through `Ctrl+V` and save a note without text.
+7. Drag an image file into the window and save a note without text.
+8. Drag an image from the browser or another program. If the source provides a file/blob/data-url or a direct image link, it will be added as an attachment.
+9. Create a sketch with the sketch button, draw something, save it, and make sure a PNG appears in the attachment list.
+10. Check that the `.md` file appeared in `D:\Obsidian\Second brain\1 – Инбокс`.
+11. Check that attachments appeared in `5 – Ресурсы\Notes Ketchup\YYYY-MM-DD`.
+12. Open the note in Obsidian and make sure image embeds are displayed.
 
-## Скетчи
+## Sketches
 
-Базовый режим скетчей уже реализован в отдельном Tauri-окне:
+The sketch mode is implemented in a separate Tauri window backed by `sketch.html` and `src/sketch.ts`.
 
-1. Кнопка скетча открывает отдельное окно `sketch-YYYY-MM-DD_HH-MM-SS`.
-2. Название в окне можно изменить; оно становится именем PNG-файла.
-3. Рисование работает черным цветом.
-4. Можно выбрать толщину линии.
-5. Можно очистить холст, закрыть окно без сохранения или сохранить.
-6. При сохранении canvas экспортируется в PNG и добавляется как обычное image-вложение к текущей заметке.
+Current behavior:
 
-Следующие улучшения:
+1. The sketch button opens a separate resizable sketch window.
+2. The canvas keeps its content while the sketch window is resized.
+3. Drawing supports marker, water marker, and eraser tools.
+4. Stroke width, stroke color, and background color can be selected.
+5. Undo/redo, clear, copy image, close without saving, and add sketch actions are available.
+6. On add, the canvas is exported to PNG and added as a regular image attachment to the current note.
 
-1. Ластик.
-2. Undo/redo.
-3. Цвета.
-4. Сохранение JSON-исходника рядом с PNG для будущего редактирования.
-5. Открытие существующего скетча и автосохранение черновика.
+Possible next improvements:
 
-Не нужно добавлять React/Svelte только ради скетчей. Текущей архитектуры HTML/CSS/TypeScript достаточно.
+1. Editable sketch names.
+2. Saving the JSON source next to the PNG for future editing.
+3. Opening an existing sketch and autosaving a draft.
+
+Do not add React/Svelte just for sketches. The current HTML/CSS/TypeScript architecture is enough.

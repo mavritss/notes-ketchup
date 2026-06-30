@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { LogicalSize } from "@tauri-apps/api/dpi";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -42,11 +41,6 @@ const appWindow = getCurrentWindow();
 let attachmentPaths: string[] = [];
 let isSaving = false;
 let statusTimer: number | undefined;
-let currentWidgetHeight = 274;
-
-const WIDGET_WIDTH = 356;
-const WIDGET_HEIGHT = 274;
-const WIDGET_HEIGHT_WITH_ATTACHMENTS = 342;
 
 function fileNameFromPath(filePath: string): string {
   return filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? filePath;
@@ -174,20 +168,9 @@ function updateSendState() {
   sendButton.disabled = !canSend();
 }
 
-function updateWidgetSize() {
-  const nextHeight = attachmentPaths.length > 0 ? WIDGET_HEIGHT_WITH_ATTACHMENTS : WIDGET_HEIGHT;
-  if (nextHeight === currentWidgetHeight) {
-    return;
-  }
-
-  currentWidgetHeight = nextHeight;
-  void appWindow.setSize(new LogicalSize(WIDGET_WIDTH, nextHeight));
-}
-
 function renderAttachments() {
   attachmentsEl.replaceChildren();
   attachmentsEl.hidden = attachmentPaths.length === 0;
-  updateWidgetSize();
 
   for (const path of attachmentPaths) {
     const fileName = fileNameFromPath(path);
@@ -496,14 +479,14 @@ noteInput.addEventListener("input", () => {
   updateSendState();
 });
 
-noteInput.addEventListener("keydown", (event) => {
+document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
     if (canSend()) {
       sendButton.click();
     }
   }
-});
+}, true);
 
 renderAttachments();
 updateSendState();

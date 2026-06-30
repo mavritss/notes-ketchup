@@ -41,7 +41,9 @@ const waterCanvas = getRequiredElement<HTMLCanvasElement>("#waterCanvas");
 const inkCanvas = getRequiredElement<HTMLCanvasElement>("#inkCanvas");
 const sketchSize = getRequiredElement<HTMLInputElement>("#sketchSize");
 const sketchColor = getRequiredElement<HTMLInputElement>("#sketchColor");
+const sketchBackgroundColor = getRequiredElement<HTMLInputElement>("#sketchBackgroundColor");
 const sketchColorPreview = getRequiredElement<HTMLSpanElement>("#sketchColorPreview");
+const sketchBackgroundPreview = getRequiredElement<HTMLSpanElement>("#sketchBackgroundPreview");
 const sketchBrushCursor = getRequiredElement<HTMLDivElement>("#sketchBrushCursor");
 const sketchSizePreview = getRequiredElement<HTMLDivElement>("#sketchSizePreview");
 const sketchClearButton = getRequiredElement<HTMLButtonElement>("#sketchClearButton");
@@ -56,7 +58,6 @@ const inkContext = getCanvasContext(inkCanvas);
 const sketchWindow = getCurrentWindow();
 
 const HISTORY_LIMIT = 60;
-const CANVAS_BACKGROUND = "#fbfaf7";
 const WATER_WIDTH_MULTIPLIER = 2.2;
 const ERASER_WIDTH_MULTIPLIER = 1.4;
 
@@ -188,6 +189,12 @@ function updateColorPreview() {
   sketchColorPreview.style.backgroundColor = sketchColor.value;
   sketchColorPreview.style.setProperty("--sketch-color", sketchColor.value);
   sketchSurface.style.setProperty("--sketch-color", sketchColor.value);
+}
+
+function updateBackgroundPreview() {
+  sketchBackgroundPreview.style.backgroundColor = sketchBackgroundColor.value;
+  sketchBackgroundPreview.style.setProperty("--sketch-background-color", sketchBackgroundColor.value);
+  sketchSurface.style.setProperty("--sketch-background-color", sketchBackgroundColor.value);
 }
 
 function setActiveTool(tool: SketchTool) {
@@ -404,7 +411,7 @@ function exportSketchBlob(): Promise<Blob> {
       return;
     }
 
-    outputContext.fillStyle = CANVAS_BACKGROUND;
+    outputContext.fillStyle = sketchBackgroundColor.value;
     outputContext.fillRect(0, 0, output.width, output.height);
     outputContext.drawImage(waterCanvas, 0, 0);
     outputContext.drawImage(inkCanvas, 0, 0);
@@ -499,6 +506,7 @@ toolButtons.forEach((button) => {
 });
 
 sketchColor.addEventListener("input", updateColorPreview);
+sketchBackgroundColor.addEventListener("input", updateBackgroundPreview);
 sketchSize.addEventListener("input", () => {
   updateBrushOverlays();
   showSizePreview();
@@ -565,6 +573,7 @@ requestAnimationFrame(() => {
   resizeCanvasPair();
   setActiveTool("marker");
   updateColorPreview();
+  updateBackgroundPreview();
   updateBrushOverlays();
   pushHistory();
 });
